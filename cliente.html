@@ -3,175 +3,332 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dash Dine - Realizar Orden</title>
-    <!-- Firebase SDK para conexión en tiempo real -->
+    <title>Panel de Administración - Tacos El Paisa</title>
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
         :root {
             --primary: #A61C1C;
-            --secondary: #16A34A;
+            --success: #16A34A;
+            --warning: #D97706;
+            --danger: #DC2626;
             --dark: #1F2937;
-            --light-bg: #F7F5F0;
+            --bg: #F3F4F6;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-        body { background: var(--light-bg); padding: 15px; color: var(--dark); }
-        
-        .header { text-align: center; margin-bottom: 25px; margin-top: 10px; }
-        .logo-container { width: 85px; height: 85px; margin: 0 auto 10px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid #D97706; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .logo-container img { max-width: 80%; object-fit: contain; }
-        
-        .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-        .menu-price { color: var(--primary); font-weight: bold; font-size: 1.1rem; margin-top: 4px; }
-        
-        .btn { width: 100%; background: var(--primary); color: white; border: none; padding: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 12px; font-size: 0.95rem; transition: background 0.2s; }
-        .btn:active { transform: scale(0.98); }
-        .btn-pay { background: #3B82F6; }
-        .btn-pay:hover { background: #1D4ED8; }
-        
-        .method-select { display: block; width: 100%; padding: 12px; margin-top: 6px; border-radius: 8px; border: 1px solid #CBD5E1; background: #FFF; font-size: 0.95rem; }
-        
-        .status { font-weight: bold; padding: 10px; border-radius: 8px; display: inline-block; margin-top: 12px; width: 100%; text-align: center; }
-        .pending { background: #FEF3C7; color: #D97706; border: 1px solid #FDE68A; }
-        .approved { background: #D1FAE5; color: #065F46; border: 1px solid #A7F3D0; }
-        .rejected { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; }
 
-        .payment-box { background: #F8FAFC; border: 1px solid #E2E8F0; padding: 15px; border-radius: 8px; margin-top: 15px; text-align: center; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background-color: var(--bg); color: var(--dark); padding: 20px; }
+        
+        header {
+            background-color: var(--dark);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 4px solid var(--primary);
+        }
+
+        .grid-ordenes {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .card-orden {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border-top: 6px solid var(--warning);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .card-orden.accepted { border-top-color: var(--success); }
+        .card-orden.rejected { border-top-color: var(--danger); opacity: 0.7; }
+
+        .timer-box {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background-color: #FEF3C7;
+            color: #92400E;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+
+        .info-cliente { margin: 15px 0; padding: 10px 0; border-top: 1px dashed #E5E7EB; border-bottom: 1px dashed #E5E7EB; }
+        .info-cliente p { margin-bottom: 4px; font-size: 0.9rem; }
+
+        .lista-items { margin: 10px 0; list-style: none; }
+        .lista-items li { padding: 6px 0; border-bottom: 1px solid #F3F4F6; font-size: 0.95rem; }
+        .meta-item { font-size: 0.8rem; color: #6B7280; display: block; }
+
+        .btn {
+            width: 100%; padding: 10px; border: none; border-radius: 6px; 
+            font-weight: bold; cursor: pointer; margin-top: 8px; transition: all 0.2s;
+        }
+        .btn-success { background-color: var(--success); color: white; }
+        .btn-danger { background-color: var(--danger); color: white; }
+        .btn-print { background-color: #3B82F6; color: white; }
+        .btn-warn { background-color: var(--warning); color: white; }
+
+        /* Estilos de Impresión del Ticket */
+        @media print {
+            body * { visibility: hidden; }
+            #ticket-impresion, #ticket-impresion * { visibility: visible; }
+            #ticket-impresion { position: absolute; left: 0; top: 0; width: 80mm; font-family: monospace; }
+        }
+
+        #ticket-impresion { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div class="logo-container">
-            <!-- Espacio para tu logotipo corporativo -->
-            <img src="tu-logo.png" alt="Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/5787/5787100.png'">
+    <header>
+        <div>
+            <h1>👨‍🍳 Tacos El Paisa - Cocina</h1>
+            <p>Panel de Control de Órdenes en Tiempo Real</p>
         </div>
-        <h2>Dash Dine</h2>
-        <p style="font-size: 0.85rem; color: #64748B; margin-top: 2px;">Menu Digital & Órdenes</p>
-    </div>
-
-    <!-- Lista de Platillos (Ejemplo) -->
-    <div class="card">
-        <h3>Nachos Supremos Especiales</h3>
-        <p style="color: #64748B; font-size: 0.85rem; margin-top: 2px;">Con queso fundido, guacamole fresco y carne asada.</p>
-        <p class="menu-price">$12.00</p>
-        <button class="btn" onclick="agregarAlCarrito('Nachos Supremos', 12.00)">🛒 Ordenar Platillo</button>
-    </div>
-
-    <!-- Sección Dinámica de Checkout -->
-    <div class="card" id="checkout-section" style="display:none;">
-        <h3 style="border-bottom: 1px solid #E2E8F0; padding-bottom: 8px;">Resumen de Pedido</h3>
-        <p style="margin-top: 10px; font-size: 1rem;">Platillo: <strong id="cart-item" style="color: var(--primary);"></strong></p>
-        
-        <!-- Selector de las 3 Formas de Pago -->
-        <label style="margin-top: 14px; display:block; font-weight:bold; font-size: 0.9rem;">Selecciona tu método de pago:</label>
-        <select id="payment-method" class="method-select">
-            <option value="cash">💵 Efectivo (Pago en entrega / Caja)</option>
-            <option value="zelle">📱 Zelle (Transferencia QR Directa)</option>
-            <option value="stripe">💳 Tarjeta de Crédito / Débito (Stripe)</option>
-        </select>
-
-        <button class="btn" id="btn-enviar" onclick="procesarOrdenNube()">🚀 Enviar Pedido a la Cocina</button>
-
-        <!-- Bloque de Monitoreo en Tiempo Real -->
-        <div id="status-area" style="display:none; margin-top:15px; border-top:1px dashed #CBD5E1; padding-top:15px;">
-            <p style="font-size:0.9rem; text-align: center; color: #475569;">Estado de la Orden en Cocina:</p>
-            <span id="order-status" class="status pending">Esperando confirmación del restaurante...</span>
-
-            <div id="pay-action-area" style="display:none;">
-                <div class="payment-box">
-                    <!-- Opción 1: Zelle QR Dinámico -->
-                    <div id="zelle-qr" style="display:none;">
-                        <p style="font-size:0.85rem; margin-bottom:10px; color:#475569; font-weight: bold;">Escanea con tu App Bancaria para pagar:</p>
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=Zelle%20RICARDO%20REGULES%20JULIAN%203477670158" style="width:150px; height:150px; background:white; padding:5px; border:1px solid #CBD5E1; margin-bottom:5px;" alt="QR Zelle">
-                        <p style="font-weight:bold; font-size:0.95rem; color:#1E3A8A;">RICARDO REGULES JULIAN</p>
-                        <p style="font-size:0.8rem; color:#64748B; margin-top:2px;">Por favor, muestra el comprobante al recibir.</p>
-                    </div>
-
-                    <!-- Opción 2: Botón de Pago Stripe -->
-                    <div id="stripe-button" style="display:none;">
-                        <p style="font-size:0.85rem; margin-bottom:10px; color:#475569;">Procesa tu pago con tarjeta de forma segura:</p>
-                        <button class="btn btn-pay" onclick="abrirPasarelaStripe()">💳 Pagar Seguro con Stripe</button>
-                    </div>
-                    
-                    <!-- Opción 3: Mensaje de Efectivo -->
-                    <div id="cash-message" style="display:none;">
-                        <p style="color:var(--secondary); font-weight:bold; font-size:1rem;">💵 ¡Confirmado! Ten listo tu efectivo para cuando llegue tu orden.</p>
-                    </div>
-                </div>
-            </div>
+        <div>
+            <!-- Switch de audio por restricciones de navegación del navegador -->
+            <label style="color: #9CA3AF; font-size: 0.9rem;">
+                <input type="checkbox" id="audio-toggle" checked> Alertas de Sonido Activas
+            </label>
         </div>
-    </div>
+    </header>
+
+    <main class="grid-ordenes" id="contenedor-ordenes">
+        <!-- Las órdenes entrantes se inyectarán aquí dinámicamente -->
+    </main>
+
+    <!-- CONTENEDOR OCULTO PARA EL TICKET DE IMPRESIÓN (Formato Térmico de 80mm) -->
+    <div id="ticket-impresion"></div>
 
     <script>
-        // CONFIGURACIÓN DE FIREBASE: Reemplaza con los datos de tu consola de Firebase
+        // CONFIGURACIÓN DE FIREBASE (Usa la misma de la app del cliente)
         const firebaseConfig = {
             databaseURL: "https://TU-PROYECTO-FIREBASE.firebaseio.com"
         };
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        let uniqueOrderId = "order_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
-        let currentItem = "";
-        let currentPrice = 0;
+        // Inicializar el objeto de audio del sistema (Tono de Alerta)
+        const audioAlerta = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav'); 
+        let ordenesLocales = {};
+        let timersIntervals = {};
 
-        function agregarAlCarrito(nombre, precio) {
-            currentItem = nombre;
-            currentPrice = precio;
-            document.getElementById('cart-item').textContent = `${nombre} ($${precio.toFixed(2)})`;
-            document.getElementById('checkout-section').style.display = "block";
-            // Auto-scroll al checkout para mejorar la experiencia de usuario
-            document.getElementById('checkout-section').scrollIntoView({ behavior: 'smooth' });
-        }
-
-        function procesarOrdenNube() {
-            const metodo = document.getElementById('payment-method').value;
+        // 1. ESCUCHAR ÓRDENES EN TIEMPO REAL
+        database.ref('ordenes').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) {
+                document.getElementById('contenedor-ordenes').innerHTML = '<p style="padding:20px;">No hay órdenes registradas.</p>';
+                return;
+            }
             
-            // Registramos la orden en el nodo global de Firebase
-            database.ref('ordenes/' + uniqueOrderId).set({
-                id: uniqueOrderId,
-                platillo: currentItem,
-                total: currentPrice,
-                metodoPago: metodo,
-                estado: "pendiente",
-                timestamp: Date.now()
-            });
+            // Detectar si entró una orden nueva para hacer sonar el tono
+            detectarNuevaOrden(data);
+            
+            ordenesLocales = data;
+            renderizarPanels();
+        });
 
-            // Bloqueamos controles de re-envío
-            document.getElementById('btn-enviar').disabled = true;
-            document.getElementById('btn-enviar').style.background = "#94A3B8";
-            document.getElementById('payment-method').disabled = true;
-            document.getElementById('status-area').style.display = "block";
-
-            // Escuchador en tiempo real: reacciona inmediatamente a lo que pulse el dueño en su laptop
-            database.ref('ordenes/' + uniqueOrderId).on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (!data) return;
-
-                const statusLabel = document.getElementById('order-status');
-                
-                if (data.estado === "aceptado") {
-                    statusLabel.textContent = "¡Pedido Aceptado por la Cocina!";
-                    statusLabel.className = "status approved";
-                    renderizarMetodoPago(data.metodoPago);
-                } else if (data.estado === "rechazado") {
-                    statusLabel.textContent = "Pedido Cancelado o Rechazado por el restaurante.";
-                    statusLabel.className = "status rejected";
-                    document.getElementById('pay-action-area').style.display = "none";
+        function detectarNuevaOrden(nuevasOrdenes) {
+            Object.keys(nuevasOrdenes).forEach(id => {
+                if (!ordenesLocales[id] && nuevasOrdenes[id].estado === 'pendiente') {
+                    if (document.getElementById('audio-toggle').checked) {
+                        audioAlerta.play().catch(e => console.log("Interacción inicial requerida para audio"));
+                    }
                 }
             });
         }
 
-        function renderizarMetodoPago(metodo) {
-            document.getElementById('pay-action-area').style.display = "block";
-            document.getElementById('zelle-qr').style.display = metodo === 'zelle' ? 'block' : 'none';
-            document.getElementById('stripe-button').style.display = metodo === 'stripe' ? 'block' : 'none';
-            document.getElementById('cash-message').style.display = metodo === 'cash' ? 'block' : 'none';
+        // 2. RENDERIZAR LAS TARJETAS EN EL PANEL
+        function renderizarPanels() {
+            const contenedor = document.getElementById('contenedor-ordenes');
+            contenedor.innerHTML = '';
+
+            // Ordenar de más nuevas a más viejas
+            const listaIds = Object.keys(ordenesLocales).sort((a, b) => ordenesLocales[b].timestamp - ordenesLocales[a].timestamp);
+
+            listaIds.forEach(id => {
+                const orden = ordenesLocales[id];
+                const card = document.createElement('div');
+                card.className = `card-orden ${orden.estado}`;
+                
+                // Estructurar ítems
+                let itemsHtml = '';
+                orden.items.forEach(item => {
+                    itemsHtml += `<li>1x <strong>${item.name}</strong> <span class="meta-item">${item.meta || ''}</span></li>`;
+                });
+
+                // Lógica del Temporizador de Autocancelación (5 minutos = 300000 ms)
+                let timerHtml = '';
+                if (orden.estado === 'pendiente') {
+                    const tiempoTranscurrido = Date.now() - orden.timestamp;
+                    const tiempoRestante = Math.max(0, 300000 - tiempoTranscurrido);
+                    
+                    if (tiempoRestante <= 0) {
+                        autoCancelarOrden(id);
+                    } else {
+                        const minutos = Math.floor(tiempoRestante / 60000);
+                        const segundos = Math.floor((tiempoRestante % 60000) / 1000);
+                        timerHtml = `<div class="timer-box" id="timer-${id}">⏳ Expira: ${minutos}:${segundos < 10 ? '0' : ''}${segundos}</div>`;
+                        
+                        // Iniciar refresco del reloj visual si no existe
+                        if (!timersIntervals[id]) {
+                            timersIntervals[id] = setInterval(() => actualizarRelojVisual(id, orden.timestamp), 1000);
+                        }
+                    }
+                }
+
+                // Promo Badge
+                const promoBadge = orden.sodaGratis ? `<p style="color: var(--success); font-weight: bold; font-size: 0.85rem;">🥤 REGALAR SODA 2L (PROMO)</p>` : '';
+
+                // Render de Botones según el Estado
+                let botonesHtml = '';
+                if (orden.estado === 'pendiente') {
+                    botonesHtml = `
+                        <button class="btn btn-success" onclick="cambiarEstado('${id}', 'aceptado')">Aceptar Orden</button>
+                        <button class="btn btn-warn" onclick="notificarFaltaStock('${id}')">⚠️ Avisar Falta de Stock</button>
+                        <button class="btn btn-danger" onclick="cambiarEstado('${id}', 'rechazado')">Rechazar</button>
+                    `;
+                } else if (orden.estado === 'aceptado') {
+                    botonesHtml = `
+                        <button class="btn btn-print" onclick="imprimirTicket('${id}')">🖨️ Imprimir Ticket</button>
+                        <button class="btn btn-danger" onclick="cambiarEstado('${id}', 'rechazado')">Cancelar Orden</button>
+                    `;
+                } else {
+                    botonesHtml = `<p style="text-align:center; font-weight:bold; color:var(--danger); margin-top:10px;">ORDEN CANCELADA / RECHAZADA</p>`;
+                    if(timersIntervals[id]) { clearInterval(timersIntervals[id]); delete timersIntervals[id]; }
+                }
+
+                card.innerHTML = `
+                    ${timerHtml}
+                    <div>
+                        <h3>Orden ID: #${id.split('_')[2] || 'S/N'}</h3>
+                        <p style="font-size:0.8rem; color:#6B7280;">${new Date(orden.timestamp).toLocaleTimeString()}</p>
+                        
+                        <div class="info-cliente">
+                            <p><strong>Teléfono:</strong> ${orden.telefono}</p>
+                            <p><strong>Servicio:</strong> ${orden.servicio.toUpperCase()}</p>
+                            <p><strong>Pago:</strong> ${orden.metodoPago.toUpperCase()}</p>
+                            <p><strong>Dirección:</strong> ${orden.direccion}</p>
+                        </div>
+
+                        <ul class="lista-items">
+                            ${itemsHtml}
+                        </ul>
+                        ${promoBadge}
+                    </div>
+                    <div>
+                        <h2 style="color: var(--primary); margin: 10px 0; text-align:right;">Total: $${orden.total.toFixed(2)}</h2>
+                        ${botonesHtml}
+                    </div>
+                `;
+                contenedor.appendChild(card);
+            });
         }
 
-        function abrirPasarelaStripe() {
-            // Aquí pegas el "Stripe Payment Link" directo que generas desde tu Dashboard de Stripe
-            window.open("https://buy.stripe.com/tu-enlace-de-cobro-directo", "_blank");
+        // 3. CONTROLADOR DEL RELOJ VISUAL DEL TEMPORIZADOR
+        function actualizarRelojVisual(id, timestamp) {
+            const elem = document.getElementById(`timer-${id}`);
+            if (!elem) return;
+
+            const tiempoTranscurrido = Date.now() - timestamp;
+            const tiempoRestante = Math.max(0, 300000 - tiempoTranscurrido);
+
+            if (tiempoRestante <= 0) {
+                clearInterval(timersIntervals[id]);
+                delete timersIntervals[id];
+                autoCancelarOrden(id);
+            } else {
+                const minutos = Math.floor(tiempoRestante / 60000);
+                const segundos = Math.floor((tiempoRestante % 60000) / 1000);
+                elem.innerText = `⏳ Expira: ${minutos}:${segundos < 10 ? '0' : ''}${segundos}`;
+            }
+        }
+
+        // 4. SISTEMA DE AUTOCANCELACIÓN EN 5 MINUTOS
+        function autoCancelarOrden(id) {
+            database.ref('ordenes/' + id).update({
+                estado: 'rechazado',
+                motivoCancelacion: 'Tiempo de espera agotado (5 minutos sin confirmación).'
+            });
+        }
+
+        // 5. NOTIFICACIÓN PREVIA DE STOCK AL CLIENTE
+        function notificarFaltaStock(id) {
+            const mensaje = prompt("¿Qué producto o ingrediente no está disponible? (Ej: No hay tripa / No hay Soda de 2L):");
+            if (!mensaje) return;
+
+            // Cambiamos el estado de la orden a un aviso para que el cliente lo vea en su pantalla en tiempo real
+            database.ref('ordenes/' + id).update({
+                estado: 'pendiente', 
+                statusBadgeMod: 'warning',
+                // Al actualizar este nodo, el cliente recibirá el aviso antes de que aceptes o rechaces definitivamente
+                estadoMensajeCliente: `⚠️ ATENCIÓN: El restaurante informa que: "${mensaje}". Por favor, comunícate al 718.415.8963 para modificar tu pedido.`
+            });
+            alert("Notificación enviada al cliente. La orden sigue pendiente hasta que decidas Aceptar o Rechazar.");
+        }
+
+        // 6. CAMBIO DE ESTADOS GENERALES (Aceptar / Rechazar)
+        function cambiarEstado(id, nuevoEstado) {
+            if(timersIntervals[id]) { clearInterval(timersIntervals[id]); delete timersIntervals[id]; }
+            
+            database.ref('ordenes/' + id).update({
+                estado: nuevoEstado,
+                estadoMensajeCliente: null // Limpiamos alertas previas de stock si se acepta
+            });
+        }
+
+        // 7. SISTEMA DE GENERACIÓN E IMPRESIÓN DE TICKETS TÉRMICOS
+        function imprimirTicket(id) {
+            const orden = ordenesLocales[id];
+            const areaTicket = document.getElementById('ticket-impresion');
+            
+            let itemsTexto = '';
+            orden.items.forEach(i => {
+                itemsTexto += `1x ${i.name.substring(0,20)}\n   $${i.price.toFixed(2)}\n   ${i.meta ? '('+i.meta+')' : ''}\n`;
+            });
+
+            const estructuraTicket = `
+================================
+        TACOS EL PAISA
+   Park at 6701 Bay Pkwy, NY
+      Tel: 718.415.8963
+================================
+Ticket: #${id.split('_')[2]}
+Fecha:  ${new Date(orden.timestamp).toLocaleDateString()}
+Hora:   ${new Date(orden.timestamp).toLocaleTimeString()}
+--------------------------------
+Cliente Tel: ${orden.telefono}
+Servicio:    ${orden.servicio.toUpperCase()}
+Pago:        ${orden.metodoPago.toUpperCase()}
+Dirección:
+${orden.direccion}
+--------------------------------
+DETALLE DEL PEDIDO:
+${itemsTexto}
+--------------------------------
+${orden.sodaGratis ? '* PROMO: SODA 2L GRATIS *\n--------------------------------' : ''}
+TOTAL A COBRAR: $${orden.total.toFixed(2)}
+================================
+   ¡Gracias por su compra!
+================================
+\n\n\n
+            `;
+
+            areaTicket.innerText = estructuraTicket;
+            window.print(); // Despierta el diálogo nativo de impresión del sistema operativo
         }
     </script>
 </body>
