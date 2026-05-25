@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Administración - Tacos El Paisa</title>
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
@@ -79,7 +80,6 @@
         .btn-danger { background-color: var(--danger); color: white; }
         .btn-print { background-color: #3B82F6; color: white; }
         .btn-warn { background-color: var(--warning); color: white; }
-        .btn-dark { background-color: #4B5563; color: white; }
 
         /* Estilos de Impresión del Ticket */
         @media print {
@@ -99,47 +99,30 @@
             <p>Panel de Control de Órdenes en Tiempo Real</p>
         </div>
         <div>
-            <label style="color: #9CA3AF; font-size: 0.9rem; cursor: pointer;">
+            <!-- Switch de audio por restricciones de navegación del navegador -->
+            <label style="color: #9CA3AF; font-size: 0.9rem;">
                 <input type="checkbox" id="audio-toggle" checked> Alertas de Sonido Activas
             </label>
         </div>
     </header>
 
     <main class="grid-ordenes" id="contenedor-ordenes">
-        </main>
+        <!-- Las órdenes entrantes se inyectarán aquí dinámicamente -->
+    </main>
 
+    <!-- CONTENEDOR OCULTO PARA EL TICKET DE IMPRESIÓN (Formato Térmico de 80mm) -->
     <div id="ticket-impresion"></div>
 
     <script>
-        // CONFIGURACIÓN DE FIREBASE (Usa tu enlace real)
+        // CONFIGURACIÓN DE FIREBASE (Usa la misma de la app del cliente)
         const firebaseConfig = {
-            databaseURL: "https://tacos-el-paisa-977fb-default-rtdb.firebaseio.com/"
+            databaseURL: "https://TU-PROYECTO-FIREBASE.firebaseio.com"
         };
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // Inicializar el objeto de audio del sistema (Tono de Alerta Electrónico Funcional)
-        function sonarAlerta() {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                for (let i = 0; i < 3; i++) {
-                    setTimeout(() => {
-                        let osc = audioCtx.createOscillator();
-                        let gain = audioCtx.createGain();
-                        osc.type = 'sine';
-                        osc.frequency.setValueAtTime(950, audioCtx.currentTime); // Tono de campana de cocina
-                        gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-                        osc.connect(gain);
-                        gain.connect(audioCtx.destination);
-                        osc.start();
-                        osc.stop(audioCtx.currentTime + 0.12);
-                    }, i * 200);
-                }
-            } catch(e) {
-                console.log("Audio esperando clic en la pantalla.");
-            }
-        }
-
+        // Inicializar el objeto de audio del sistema (Tono de Alerta)
+        const audioAlerta = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav'); 
         let ordenesLocales = {};
         let timersIntervals = {};
 
@@ -147,8 +130,7 @@
         database.ref('ordenes').on('value', (snapshot) => {
             const data = snapshot.val();
             if (!data) {
-                document.getElementById('contenedor-ordenes').innerHTML = '<p style="padding:20px; font-weight:bold;">🛑 No hay órdenes registradas en este momento.</p>';
-                ordenesLocales = {};
+                document.getElementById('contenedor-ordenes').innerHTML = '<p style="padding:20px;">No hay órdenes registradas.</p>';
                 return;
             }
             
@@ -163,7 +145,7 @@
             Object.keys(nuevasOrdenes).forEach(id => {
                 if (!ordenesLocales[id] && nuevasOrdenes[id].estado === 'pendiente') {
                     if (document.getElementById('audio-toggle').checked) {
-                        sonarAlerta();
+                        audioAlerta.play().catch(e => console.log("Interacción inicial requerida para audio"));
                     }
                 }
             });
@@ -182,14 +164,10 @@
                 const card = document.createElement('div');
                 card.className = `card-orden ${orden.estado}`;
                 
-                // CORREGIDO: Ahora lee 'productos' (tu base de datos real) de forma segura
+                // Estructurar ítems
                 let itemsHtml = '';
-                const listaComida = orden.productos || orden.items || [];
-                
-                listaComida.forEach(item => {
-                    const nombreItem = item.nombre || item.name || 'Producto';
-                    const notaItem = item.nota || item.meta || '';
-                    itemsHtml += `<li><b>${item.cantidad}x</b> ${nombreItem} <span class="meta-item">${notaItem ? '('+notaItem+')' : ''}</span></li>`;
+                orden.items.forEach(item => {
+                    itemsHtml += `<li>1x <strong>${item.name}</strong> <span class="meta-item">${item.meta || ''}</span></li>`;
                 });
 
                 // Lógica del Temporizador de Autocancelación (5 minutos = 300000 ms)
@@ -205,6 +183,7 @@
                         const segundos = Math.floor((tiempoRestante % 60000) / 1000);
                         timerHtml = `<div class="timer-box" id="timer-${id}">⏳ Expira: ${minutos}:${segundos < 10 ? '0' : ''}${segundos}</div>`;
                         
+                        // Iniciar refresco del reloj visual si no existe
                         if (!timersIntervals[id]) {
                             timersIntervals[id] = setInterval(() => actualizarRelojVisual(id, orden.timestamp), 1000);
                         }
@@ -212,7 +191,7 @@
                 }
 
                 // Promo Badge
-                const promoBadge = orden.sodaGratis ? `<p style="color: var(--success); font-weight: bold; font-size: 0.85rem; margin-top:5px;">🥤 REGALAR SODA 2L (PROMO)</p>` : '';
+                const promoBadge = orden.sodaGratis ? `<p style="color: var(--success); font-weight: bold; font-size: 0.85rem;">🥤 REGALAR SODA 2L (PROMO)</p>` : '';
 
                 // Render de Botones según el Estado
                 let botonesHtml = '';
@@ -225,29 +204,24 @@
                 } else if (orden.estado === 'aceptado') {
                     botonesHtml = `
                         <button class="btn btn-print" onclick="imprimirTicket('${id}')">🖨️ Imprimir Ticket</button>
-                        <button class="btn btn-dark" onclick="eliminarOrdenDePantalla('${id}')">✓ Entregado (Cerrar)</button>
                         <button class="btn btn-danger" onclick="cambiarEstado('${id}', 'rechazado')">Cancelar Orden</button>
                     `;
                 } else {
-                    botonesHtml = `
-                        <p style="text-align:center; font-weight:bold; color:var(--danger); margin:10px 0;">ORDEN RECHAZADA / CADUCADA</p>
-                        <button class="btn btn-danger" onclick="eliminarOrdenDePantalla('${id}')">🗑️ Quitar de Pantalla</button>
-                    `;
+                    botonesHtml = `<p style="text-align:center; font-weight:bold; color:var(--danger); margin-top:10px;">ORDEN CANCELADA / RECHAZADA</p>`;
                     if(timersIntervals[id]) { clearInterval(timersIntervals[id]); delete timersIntervals[id]; }
                 }
 
                 card.innerHTML = `
                     ${timerHtml}
                     <div>
-                        <h3>Orden ID: #${id.slice(-4).toUpperCase()}</h3>
+                        <h3>Orden ID: #${id.split('_')[2] || 'S/N'}</h3>
                         <p style="font-size:0.8rem; color:#6B7280;">${new Date(orden.timestamp).toLocaleTimeString()}</p>
                         
                         <div class="info-cliente">
-                            <p><strong>👤 Cliente:</strong> ${orden.cliente || orden.telefono || 'Anónimo'}</p>
-                            <p><strong>📞 Teléfono:</strong> ${orden.telefono || 'S/N'}</p>
-                            <p><strong>🚗 Servicio:</strong> ${(orden.servicio || orden.tipoEntrega || 'Para Llevar').toUpperCase()}</p>
-                            <p><strong>💵 Pago:</strong> ${(orden.metodoPago || 'Efectivo').toUpperCase()}</p>
-                            <p><strong>📍 Dirección:</strong> ${orden.direccion || 'Entrega en Tienda'}</p>
+                            <p><strong>Teléfono:</strong> ${orden.telefono}</p>
+                            <p><strong>Servicio:</strong> ${orden.servicio.toUpperCase()}</p>
+                            <p><strong>Pago:</strong> ${orden.metodoPago.toUpperCase()}</p>
+                            <p><strong>Dirección:</strong> ${orden.direccion}</p>
                         </div>
 
                         <ul class="lista-items">
@@ -256,7 +230,7 @@
                         ${promoBadge}
                     </div>
                     <div>
-                        <h2 style="color: var(--primary); margin: 10px 0; text-align:right;">Total: $${parseFloat(orden.total || 0).toFixed(2)}</h2>
+                        <h2 style="color: var(--primary); margin: 10px 0; text-align:right;">Total: $${orden.total.toFixed(2)}</h2>
                         ${botonesHtml}
                     </div>
                 `;
@@ -293,15 +267,17 @@
 
         // 5. NOTIFICACIÓN PREVIA DE STOCK AL CLIENTE
         function notificarFaltaStock(id) {
-            const mensaje = prompt("¿Qué producto o ingrediente no está disponible? (Ej: No hay tripa):");
+            const mensaje = prompt("¿Qué producto o ingrediente no está disponible? (Ej: No hay tripa / No hay Soda de 2L):");
             if (!mensaje) return;
 
+            // Cambiamos el estado de la orden a un aviso para que el cliente lo vea en su pantalla en tiempo real
             database.ref('ordenes/' + id).update({
                 estado: 'pendiente', 
                 statusBadgeMod: 'warning',
+                // Al actualizar este nodo, el cliente recibirá el aviso antes de que aceptes o rechaces definitivamente
                 estadoMensajeCliente: `⚠️ ATENCIÓN: El restaurante informa que: "${mensaje}". Por favor, comunícate al 718.415.8963 para modificar tu pedido.`
             });
-            alert("Notificación enviada al cliente.");
+            alert("Notificación enviada al cliente. La orden sigue pendiente hasta que decidas Aceptar o Rechazar.");
         }
 
         // 6. CAMBIO DE ESTADOS GENERALES (Aceptar / Rechazar)
@@ -310,53 +286,41 @@
             
             database.ref('ordenes/' + id).update({
                 estado: nuevoEstado,
-                estadoMensajeCliente: null
+                estadoMensajeCliente: null // Limpiamos alertas previas de stock si se acepta
             });
         }
 
-        // 7. FUNCIÓN NUEVA: Limpia las órdenes de la pantalla eliminándolas de Firebase
-        function eliminarOrdenDePantalla(id) {
-            if(confirm("¿Quieres quitar esta orden de la pantalla?")) {
-                if(timersIntervals[id]) { clearInterval(timersIntervals[id]); delete timersIntervals[id]; }
-                database.ref('ordenes/' + id).remove();
-            }
-        }
-
-        // 8. SISTEMA DE GENERACIÓN E IMPRESIÓN DE TICKETS TÉRMICOS
+        // 7. SISTEMA DE GENERACIÓN E IMPRESIÓN DE TICKETS TÉRMICOS
         function imprimirTicket(id) {
             const orden = ordenesLocales[id];
             const areaTicket = document.getElementById('ticket-impresion');
             
             let itemsTexto = '';
-            const listaComida = orden.productos || orden.items || [];
-            listaComida.forEach(i => {
-                const n = i.nombre || i.name || 'Producto';
-                const m = i.nota || i.meta || '';
-                itemsTexto += `${i.cantidad}x ${n.substring(0,20)}\n   ${m ? '('+m+')' : ''}\n`;
+            orden.items.forEach(i => {
+                itemsTexto += `1x ${i.name.substring(0,20)}\n   $${i.price.toFixed(2)}\n   ${i.meta ? '('+i.meta+')' : ''}\n`;
             });
 
             const estructuraTicket = `
 ================================
-         TACOS EL PAISA
+        TACOS EL PAISA
    Park at 6701 Bay Pkwy, NY
       Tel: 718.415.8963
 ================================
-Ticket ID: #${id.slice(-4).toUpperCase()}
+Ticket: #${id.split('_')[2]}
 Fecha:  ${new Date(orden.timestamp).toLocaleDateString()}
 Hora:   ${new Date(orden.timestamp).toLocaleTimeString()}
 --------------------------------
-Cliente: ${orden.cliente || 'Anónimo'}
-Tel: ${orden.telefono || 'S/N'}
-Servicio:    ${(orden.servicio || orden.tipoEntrega || 'Para Llevar').toUpperCase()}
-Pago:        ${(orden.metodoPago || 'Efectivo').toUpperCase()}
+Cliente Tel: ${orden.telefono}
+Servicio:    ${orden.servicio.toUpperCase()}
+Pago:        ${orden.metodoPago.toUpperCase()}
 Dirección:
-${orden.direccion || 'Entrega en Tienda'}
+${orden.direccion}
 --------------------------------
 DETALLE DEL PEDIDO:
 ${itemsTexto}
 --------------------------------
 ${orden.sodaGratis ? '* PROMO: SODA 2L GRATIS *\n--------------------------------' : ''}
-TOTAL A COBRAR: $${parseFloat(orden.total || 0).toFixed(2)}
+TOTAL A COBRAR: $${orden.total.toFixed(2)}
 ================================
    ¡Gracias por su compra!
 ================================
@@ -364,7 +328,7 @@ TOTAL A COBRAR: $${parseFloat(orden.total || 0).toFixed(2)}
             `;
 
             areaTicket.innerText = estructuraTicket;
-            window.print();
+            window.print(); // Despierta el diálogo nativo de impresión del sistema operativo
         }
     </script>
 </body>
